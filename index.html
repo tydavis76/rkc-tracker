@@ -192,6 +192,26 @@ body{background:var(--bg);color:var(--tx);font-family:'Barlow',sans-serif;
 .wt-chip.sel{border-color:var(--amber);background:var(--amber-lo);color:var(--amber);}
 .wt-chip:active{opacity:.7;}
 
+
+/* ── SET COUNTER ── */
+.set-counter{margin-top:10px;padding-top:10px;border-top:1px solid var(--br);}
+.set-counter-row{display:flex;align-items:stretch;gap:8px;}
+.set-counter-btn{flex:1;padding:14px 10px;background:var(--s1);border:2px solid var(--br);
+  border-radius:10px;cursor:pointer;transition:all .15s;text-align:center;
+  -webkit-user-select:none;user-select:none;}
+.set-counter-btn:active{transform:scale(.97);background:var(--s2);}
+.set-counter-num{font-family:'Bebas Neue',sans-serif;font-size:48px;color:var(--tx);
+  line-height:1;letter-spacing:1px;display:block;}
+.set-counter-sub{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;
+  color:var(--muted);display:block;margin-top:3px;}
+.set-counter-dec{width:48px;background:var(--s2);border:1.5px solid var(--br);
+  border-radius:9px;color:var(--muted2);font-family:'JetBrains Mono',monospace;font-size:22px;
+  font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;}
+.set-counter-dec:active{opacity:.55;}
+.set-counter-prev{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);
+  text-align:center;margin-top:7px;letter-spacing:.5px;}
+
 /* ── AMRAP TIMER ── */
 .amrap-timer{margin-top:10px;padding:12px 13px;background:rgba(255,255,255,.03);
   border:1px solid var(--br);border-radius:10px;}
@@ -454,6 +474,31 @@ function startPhase2() {
   renderAll();
 }
 
+
+function getPrevSetCount(exId) {
+  var ck=exId+'_count', bestCount=0, bestDate=null;
+  Object.keys(S.completed).forEach(function(k) {
+    var v=S.completed[k];
+    if (!v||!v.loggedAt||!v.session) return;
+    var cnt=v.session[ck];
+    if (!cnt||cnt<1) return;
+    if (!bestDate||v.loggedAt>bestDate) { bestDate=v.loggedAt; bestCount=cnt; }
+  });
+  return bestCount>0 ? bestCount : null;
+}
+
+function incrementSetCount(day, exId, delta) {
+  if (isLogged(day)) return;
+  ensureSession(day);
+  var sess=S.completed[compKey(day)].session;
+  var k=exId+'_count';
+  sess[k]=Math.max(0,(sess[k]||0)+(delta||1));
+  save();
+  var numEl=document.getElementById('cnt-num-'+exId);
+  if (numEl) numEl.textContent=sess[k];
+  var subEl=document.getElementById('cnt-sub-'+exId);
+  if (subEl) subEl.textContent=sess[k]===1?'SET':'SETS';
+}
 
 function setWeight(key, kg) {
   S[key] = kg;
@@ -742,7 +787,7 @@ function buildExCard(day, ex, sess, logged) {
   }
   body.appendChild(row);
   if (ex.type === 'amrap') {
-    body.appendChild(logged ? buildTimerLockedBadge() : buildTimerWidget(ex.id));
+    body.appendChild(logged ? buildTimerLockedBadge(ex.id, sess) : buildTimerWidget(ex.id, day, sess));
   }
   card.appendChild(body);
   return card;
@@ -938,7 +983,7 @@ function timerReset(exId) {
   renderWorkoutDetail(S.selDay);
 }
 
-function buildTimerWidget(exId) {
+function buildTimerWidget(exId, day, sess) {
   var isA = T.exId===exId;
   var wrap=document.createElement('div');
   wrap.className='amrap-timer'; wrap.id='tmr-'+exId;
@@ -988,19 +1033,48 @@ function buildTimerWidget(exId) {
   rb.addEventListener('click', (function(id){return function(){timerReset(id);};})(exId));
   btns.appendChild(rb);
   wrap.appendChild(btns);
+  // ── Set counter ──
+  var ctr=document.createElement('div'); ctr.className='set-counter';
+  var crow=document.createElement('div'); crow.className='set-counter-row';
+  var curCount=(sess&&sess[exId+'_count'])||0;
+  var cbtn=document.createElement('button'); cbtn.className='set-counter-btn';
+  var cnum=document.createElement('span'); cnum.className='set-counter-num';
+  cnum.id='cnt-num-'+exId; cnum.textContent=curCount; cbtn.appendChild(cnum);
+  var csub=document.createElement('span'); csub.className='set-counter-sub';
+  csub.id='cnt-sub-'+exId; csub.textContent=curCount===1?'SET':'SETS'; cbtn.appendChild(csub);
+  cbtn.addEventListener('click',(function(d,id){return function(){incrementSetCount(d,id,1);};})(day,exId));
+  crow.appendChild(cbtn);
+  var cdec=document.createElement('button'); cdec.className='set-counter-dec';
+  cdec.textContent='−';
+  cdec.title='Undo last set';
+  cdec.addEventListener('click',(function(d,id){return function(){incrementSetCount(d,id,-1);};})(day,exId));
+  crow.appendChild(cdec);
+  ctr.appendChild(crow);
+  var prev=getPrevSetCount(exId);
+  var cprev=document.createElement('div'); cprev.className='set-counter-prev';
+  cprev.textContent=prev?'Last session: '+prev+' sets · '+(prev*10)+' reps':'No previous data yet';
+  ctr.appendChild(cprev);
+  wrap.appendChild(ctr);
   return wrap;
 }
 
-function buildTimerLockedBadge() {
+function buildTimerLockedBadge(exId, sess) {
   var wrap=document.createElement('div');
   wrap.className='amrap-timer';
   wrap.style.cssText='opacity:0.32;pointer-events:none;';
   var pl=document.createElement('div'); pl.className='timer-phase-lbl';
   pl.textContent='⏱  AMRAP BLOCK COMPLETE — 5 MIN LOGGED';
   wrap.appendChild(pl);
-  var ck=document.createElement('div'); ck.className='timer-clock';
-  ck.textContent='5:00'; ck.style.opacity='0.4';
-  wrap.appendChild(ck);
+  var ckl=document.createElement('div'); ckl.className='timer-clock';
+  ckl.textContent='5:00'; ckl.style.opacity='0.4';
+  wrap.appendChild(ckl);
+  var finalCount=(sess&&sess[exId+'_count'])||0;
+  if (finalCount>0) {
+    var fc=document.createElement('div');
+    fc.style.cssText='font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted2);margin-top:6px;';
+    fc.textContent=finalCount+' sets logged · '+(finalCount*10)+' reps total';
+    wrap.appendChild(fc);
+  }
   return wrap;
 }
 

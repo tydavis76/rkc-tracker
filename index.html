@@ -193,6 +193,34 @@ body{background:var(--bg);color:var(--tx);font-family:'Barlow',sans-serif;
 .wt-chip:active{opacity:.7;}
 
 
+
+/* ── KB LADDER ── */
+.ldr-grid{margin-top:10px;}
+.ldr-row{display:flex;gap:7px;margin-bottom:7px;align-items:center;}
+.ldr-lbl{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;
+  color:var(--muted);width:18px;flex-shrink:0;text-align:right;}
+.ldr-chip{width:52px;height:56px;background:var(--s2);border:2px solid var(--br);
+  border-radius:10px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;cursor:pointer;transition:all .18s;
+  -webkit-user-select:none;user-select:none;}
+.ldr-chip .ldr-reps{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;
+  color:var(--tx);line-height:1;}
+.ldr-chip .ldr-sub{font-size:8px;letter-spacing:1px;color:var(--muted2);
+  text-transform:uppercase;margin-top:2px;}
+.ldr-chip.done{background:var(--green-lo);border-color:var(--green);}
+.ldr-chip.done .ldr-reps,.ldr-chip.done .ldr-sub{color:var(--green);}
+.ldr-chip:active{transform:scale(.92);}
+/* ── REST TIMER ── */
+.rest-tmr-wrap{display:flex;align-items:center;gap:9px;margin-top:10px;}
+.rest-tmr-disp{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;
+  color:var(--tx);min-width:68px;letter-spacing:1px;}
+.rest-tmr-disp.warn{color:var(--red);}
+.rest-tmr-disp.go{color:var(--green);}
+.rest-tmr-btn{padding:9px 13px;background:var(--s2);border:1.5px solid var(--br);
+  border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;
+  color:var(--muted2);cursor:pointer;transition:all .15s;letter-spacing:.5px;}
+.rest-tmr-btn:active{opacity:.7;}
+.rest-tmr-btn.active{border-color:var(--amber);color:var(--amber);}
 /* ── SET COUNTER ── */
 .set-counter{margin-top:10px;padding-top:10px;border-top:1px solid var(--br);}
 .set-counter-row{display:flex;align-items:stretch;gap:8px;}
@@ -274,6 +302,8 @@ body{background:var(--bg);color:var(--tx);font-family:'Barlow',sans-serif;
   <div id="sc-settings" class="screen">
     <div class="set-section">Program Status</div>
     <div class="set-card" id="prog-status-card"></div>
+    <div class="set-section">Pull-Up Starting Max</div>
+    <div class="set-card" id="pullup-max-card"></div>
     <div class="set-section">Kettlebell Weights</div>
     <div class="set-card" id="weight-card"></div>
     <div class="set-section">Week Navigation</div>
@@ -307,21 +337,22 @@ body{background:var(--bg);color:var(--tx);font-family:'Barlow',sans-serif;
 // ── DATA ──────────────────────────────────────────────
 // Phase 1: strict max 6 reps. Pattern: top set starts at 6, descends by 1 per set.
 // Each block adds 1 rep to the top set after 5 training days + 1 rest.
-const FPP1 = [
-  [6,5,4,3,2],[6,5,4,3,3],[6,5,4,4,3],[6,5,4,4,4],[6,5,5,4,4],null,
-  [7,6,5,4,3],[7,6,5,4,4],[7,6,5,5,4],[7,6,5,5,5],[7,6,6,5,5],null,
-  [8,7,6,5,4],[8,7,6,5,5],[8,7,6,6,5],[8,7,6,6,6],[8,7,7,6,6],null,
-  [9,8,7,6,5],[9,8,7,6,6],[9,8,7,7,6],[9,8,7,7,7],[9,8,8,7,7],null,
-  [10,9,8,7,6],[10,9,8,7,7],[10,9,8,8,7],[10,9,8,8,8],null
-];
-// Phase 2: estimated new max ~10 reps after testing. Same 5-on/1-rest pattern.
-const FPP2 = [
-  [10,9,8,7,6],[10,9,8,7,7],[10,9,8,8,7],[10,9,8,8,8],[10,9,9,8,8],null,
-  [11,10,9,8,7],[11,10,9,8,8],[11,10,9,9,8],[11,10,9,9,9],[11,10,10,9,9],null,
-  [12,11,10,9,8],[12,11,10,9,9],[12,11,10,10,9],[12,11,10,10,10],[12,11,11,10,10],null,
-  [13,12,11,10,9],[13,12,11,10,10],[13,12,11,11,10],[13,12,11,11,11],[13,12,12,11,11],null,
-  [14,13,12,11,10],[14,13,12,11,11],[14,13,12,12,11],[14,13,12,12,12],null
-];
+// FPP arrays generated dynamically from S.pullupMax.
+// Delta pattern [4,3,4,2] = which set (0-indexed from top) catches up each day.
+// Verified identical to original hardcoded arrays for max=6 (Phase 1) and max=10 (Phase 2).
+function generateFPP(startMax) {
+  var entries=[];
+  function makeBlock(N,days){
+    var cur=[]; for(var i=0;i<5;i++) cur.push(Math.max(1,N-i));
+    entries.push(cur.slice());
+    var pat=[4,3,4,2];
+    for(var d=0;d<days-1;d++){ cur[pat[d]]++; entries.push(cur.slice()); }
+    entries.push(null);
+  }
+  for(var b=0;b<4;b++) makeBlock(startMax+b,5);
+  makeBlock(startMax+4,4);
+  return entries;
+}
 const KB_L = [
   {heavy:'3x(1,2,3)', medium:'2x(1,2,3)', light:'3x(1,2)'},
   {heavy:'4x(1,2,3)', medium:'3x(1,2,3)', light:'2x(1,2,3)'},
@@ -344,12 +375,13 @@ function loadState() {
   try { S = JSON.parse(localStorage.getItem('rkc_v2')); } catch(e){ S=null; }
   if (S && !S.pressKg) S.pressKg = 20;
   if (S && !S.swingKg) S.swingKg = 20;
+  if (S && !S.pullupMax) S.pullupMax = 6;
 }
 function save() { localStorage.setItem('rkc_v2', JSON.stringify(S)); }
 
 // ── HELPERS ───────────────────────────────────────────
 const wkPeriod = w => Math.floor((w-1)/2);
-const fppArr = () => S.phase===1 ? FPP1 : FPP2;
+const fppArr = () => generateFPP(S.phase===1 ? S.pullupMax : S.pullupMax+4);
 const fppEntry = () => S.fppIndex < fppArr().length ? fppArr()[S.fppIndex] : null;
 const fppDone = () => S.fppIndex >= fppArr().length;
 const fppDayLabel = () => 'Day '+(S.fppIndex+1)+'/'+fppArr().length;
@@ -384,7 +416,7 @@ function getDayWorkout(week, day) {
 
   if (day !== 'Tue') {
     var ktype = KB_TYPE[day];
-    exs.push({id:'kb', name:'Clean & Press Ladders',
+    exs.push({id:'kb', name:'Clean & Press Ladders', type:'kb_ladder',
       rx: KB_L[period][ktype] + ' @ '+S.pressKg+'kg',
       note: ktype.charAt(0).toUpperCase()+ktype.slice(1)+' day. Re-clean before each press rep.',
       rest: 'Virtual partner rest: wait for your imaginary partner to complete the same rung before starting your next set. Short early in the ladder, naturally longer at the top.'});
@@ -465,7 +497,7 @@ function advanceWeek() {
 }
 
 function startPhase2() {
-  if (!confirm('Start Phase 2? FPP resets to Day 1 using your new max (~12 reps).')) return;
+  if (!confirm('Start Phase 2? FPP resets to Day 1.\nEstimated starting max: '+(S.pullupMax+4)+' reps (Phase 1 max + 4).\nAdjust pull-up max in Settings if needed.')) return;
   S.phase = 2;
   S.fppIndex = 0;
   if (S.week < 5) S.week = 5;
@@ -474,6 +506,115 @@ function startPhase2() {
   renderAll();
 }
 
+
+
+function toggleKBChip(day, idx) {
+  if (isLogged(day)) return;
+  ensureSession(day);
+  var sess=S.completed[compKey(day)].session;
+  if (!sess.kb_chips) sess.kb_chips=[];
+  sess.kb_chips[idx]=!sess.kb_chips[idx];
+  save();
+  renderWorkoutDetail(day);
+}
+
+function parseLadder(rx) {
+  var m=rx.match(/(\d+)x\(([^)]+)\)/);
+  if (!m) return null;
+  return {count:parseInt(m[1]),rungs:m[2].split(',').map(function(s){return parseInt(s.trim());})};
+}
+
+// ── REST TIMER ──
+var R={exId:null,iid:null,rem:0};
+function restStart(exId,secs){
+  if(R.iid){clearInterval(R.iid);R.iid=null;}
+  R.exId=exId; R.rem=secs;
+  R.iid=setInterval(function(){
+    R.rem--;
+    if(R.rem<=0){clearInterval(R.iid);R.iid=null;beep();}
+    restUpdateDOM();
+  },1000);
+  restUpdateDOM();
+}
+function restUpdateDOM(){
+  var el=document.getElementById('rest-disp-'+R.exId);
+  if(!el) return;
+  if(R.rem<=0&&!R.iid){el.textContent='GO';el.className='rest-tmr-disp go';}
+  else{el.textContent=timerFmt(R.rem);el.className='rest-tmr-disp'+(R.rem<=10?' warn':'');}
+}
+
+function buildKBCard(day,ex,sess,logged){
+  var parsed=parseLadder(ex.rx);
+  var kbChips=sess.kb_chips||[];
+  var total=parsed?parsed.count*parsed.rungs.length:0;
+  var doneCt=kbChips.filter(Boolean).length;
+  var allDone=total>0&&doneCt===total;
+
+  var card=document.createElement('div'); card.className='excard';
+  var hdr=document.createElement('div'); hdr.className='exhdr';
+  var ttl=document.createElement('span'); ttl.className='extitle';
+  ttl.textContent=ex.name.toUpperCase(); hdr.appendChild(ttl);
+  var bdg=document.createElement('span');
+  bdg.className='exbadge'+(allDone?' done':'');
+  bdg.textContent=parsed?(doneCt+'/'+total+' RUNGS'):(allDone?'✓ DONE':'TODO');
+  hdr.appendChild(bdg); card.appendChild(hdr);
+
+  var body=document.createElement('div'); body.className='exbody';
+  var rxEl=document.createElement('div'); rxEl.className='row-rx'; rxEl.textContent=ex.rx;
+  body.appendChild(rxEl);
+  if(ex.note){var nt=document.createElement('div'); nt.className='row-note'; nt.textContent=ex.note; body.appendChild(nt);}
+
+  if(parsed){
+    var grid=document.createElement('div'); grid.className='ldr-grid';
+    for(var li=0;li<parsed.count;li++){
+      var lrow=document.createElement('div'); lrow.className='ldr-row';
+      var llbl=document.createElement('div'); llbl.className='ldr-lbl'; llbl.textContent='L'+(li+1); lrow.appendChild(llbl);
+      for(var ri=0;ri<parsed.rungs.length;ri++){
+        var idx=li*parsed.rungs.length+ri;
+        var isDone=!!kbChips[idx];
+        var chip=document.createElement('div'); chip.className='ldr-chip'+(isDone?' done':'');
+        var repsEl=document.createElement('span'); repsEl.className='ldr-reps'; repsEl.textContent=parsed.rungs[ri]; chip.appendChild(repsEl);
+        var subEl=document.createElement('span'); subEl.className='ldr-sub'; subEl.textContent=isDone?'✓':'R'+(ri+1); chip.appendChild(subEl);
+        if(!logged){
+          chip.addEventListener('click',(function(i,was){return function(){
+            if(!was) restStart('kb',90);
+            toggleKBChip(day,i);
+          };})(idx,isDone));
+        }
+        lrow.appendChild(chip);
+      }
+      grid.appendChild(lrow);
+    }
+    body.appendChild(grid);
+
+    if(!logged){
+      var rtWrap=document.createElement('div'); rtWrap.className='rest-tmr-wrap';
+      var rtDisp=document.createElement('div'); rtDisp.className='rest-tmr-disp';
+      rtDisp.id='rest-disp-kb';
+      var isActive=R.exId==='kb'&&R.rem>0;
+      rtDisp.textContent=isActive?timerFmt(R.rem):'--:--';
+      if(isActive&&R.rem<=10) rtDisp.className='rest-tmr-disp warn';
+      rtWrap.appendChild(rtDisp);
+      var btn60=document.createElement('button'); btn60.className='rest-tmr-btn'; btn60.textContent='60s';
+      btn60.addEventListener('click',function(){restStart('kb',60);}); rtWrap.appendChild(btn60);
+      var btn90=document.createElement('button'); btn90.className='rest-tmr-btn'; btn90.textContent='90s';
+      btn90.addEventListener('click',function(){restStart('kb',90);}); rtWrap.appendChild(btn90);
+      body.appendChild(rtWrap);
+    }
+  }
+
+  if(ex.rest){
+    var ri2=document.createElement('div'); ri2.className='rest-info';
+    var riIcon=document.createElement('span'); riIcon.className='rest-info-icon'; riIcon.textContent='⏱';
+    ri2.appendChild(riIcon);
+    var riTxt=document.createElement('span');
+    var strong=document.createElement('strong'); strong.textContent='Rest: '; riTxt.appendChild(strong);
+    riTxt.appendChild(document.createTextNode(ex.rest)); ri2.appendChild(riTxt);
+    body.appendChild(ri2);
+  }
+  card.appendChild(body);
+  return card;
+}
 
 function getPrevSetCount(exId) {
   var ck=exId+'_count', bestCount=0, bestDate=null;
@@ -631,6 +772,8 @@ function renderWorkoutDetail(day) {
   w.exs.forEach(function(ex) {
     if (ex.type === 'fpp') {
       el.appendChild(buildFPPCard(day, sess, logged));
+    } else if (ex.type === 'kb_ladder') {
+      el.appendChild(buildKBCard(day, ex, sess, logged));
     } else {
       el.appendChild(buildExCard(day, ex, sess, logged));
     }
@@ -834,6 +977,29 @@ function renderProgress() {
 
 function renderSettings() {
   var BELLS = [16, 20, 24, 32];
+  var pmCard=document.getElementById('pullup-max-card');
+  if(pmCard){
+    pmCard.textContent='';
+    var pmLbl=document.createElement('div'); pmLbl.className='set-label';
+    pmLbl.style.cssText='font-size:13px;margin-bottom:4px;';
+    pmLbl.textContent='Your strict pull-up max reps'; pmCard.appendChild(pmLbl);
+    var pmSub=document.createElement('div'); pmSub.className='set-note'; pmSub.style.marginBottom='8px';
+    pmSub.textContent='Current: '+S.pullupMax+' reps. Phase 2 will start at '+(S.pullupMax+4)+'.';
+    pmCard.appendChild(pmSub);
+    var pmRow=document.createElement('div'); pmRow.style.cssText='display:flex;flex-wrap:wrap;gap:7px;';
+    [3,4,5,6,7,8,9,10].forEach(function(v){
+      var c=document.createElement('button');
+      var sel=S.pullupMax===v;
+      c.style.cssText='flex:0 0 auto;min-width:50px;padding:9px 6px;background:'+(sel?'var(--amber-lo)':'var(--s2)')+';border:1.5px solid '+(sel?'var(--amber)':'var(--br)')+';border-radius:9px;font-family:\'JetBrains Mono\',monospace;font-size:13px;font-weight:700;color:'+(sel?'var(--amber)':'var(--muted2)')+';cursor:pointer;transition:all .15s;text-align:center;';
+      c.textContent=v;
+      c.addEventListener('click',(function(val){return function(){S.pullupMax=val;save();renderSettings();renderAll();};})(v));
+      pmRow.appendChild(c);
+    });
+    pmCard.appendChild(pmRow);
+    var pmNote=document.createElement('div'); pmNote.className='set-note'; pmNote.style.marginTop='8px';
+    pmNote.textContent='Best set before starting. Changing mid-cycle shifts your FPP sets immediately.';
+    pmCard.appendChild(pmNote);
+  }
   var wc = document.getElementById('weight-card');
   if (wc) {
     wc.textContent = '';
@@ -1083,7 +1249,7 @@ document.getElementById('ob-start').addEventListener('click', function() {
   S = {
     version:2, phase:1, week:1, fppIndex:0, selDay:'Mon',
     completed:{}, startDate:new Date().toISOString(),
-    pressKg:20, swingKg:20
+    pressKg:20, swingKg:20, pullupMax:6
   };
   save();
   document.getElementById('onboard').style.display = 'none';

@@ -427,25 +427,25 @@ function getDayWorkout(week, day) {
   }
 
   if (day==='Mon') {
-    exs.push({id:'trx_rows', name:'TRX Rows', rx:'3 x 8-10',
+    exs.push({id:'trx_rows', name:'TRX Rows', type:'sets', rx:'3 x 8-10',
       note: period<2 ? 'Body ~45 deg to floor, pull elbows back' : 'Walk feet forward for more difficulty',
       rest:'60-90 sec between sets.'});
-    exs.push({id:'trx_face', name:'TRX Face Pulls / Y-T-W', rx:'2 x 10-12',
+    exs.push({id:'trx_face', name:'TRX Face Pulls / Y-T-W', type:'sets', rx:'2 x 10-12',
       note:'Prehab only. Slow reps, never overload. Protects the shoulder.',
       rest:'~60 sec between sets. Slow controlled reps — the rest is part of the prehab effect.'});
   } else if (day==='Tue') {
-    exs.push({id:'trx_lunges', name:'TRX Reverse Lunges',
+    exs.push({id:'trx_lunges', name:'TRX Reverse Lunges', type:'sets',
       rx: LUNGE_RX[week] || '3x8/leg',
       note:'Hold handles lightly for balance only. Do not pull the straps.',
       rest:'60-90 sec between sets.'});
   } else if (day==='Wed') {
-    exs.push({id:'trx_pistols', name:'TRX Assisted Pistol Squats', rx:'3 x 5/leg',
+    exs.push({id:'trx_pistols', name:'TRX Assisted Pistol Squats', type:'sets', rx:'3 x 5/leg',
       note: week<=4 ? 'Use as much TRX assistance as needed. Pattern before strength.'
         : week<=6 ? 'Reduce assistance gradually. Focus on control.'
         : 'Light-touch assistance. Attempt a few unassisted reps.',
       rest:'60-90 sec between sets. Skill work — full recovery between legs matters more than pushing density.'});
   } else if (day==='Fri') {
-    exs.push({id:'trx_split', name:'TRX Split-Stance Rows',
+    exs.push({id:'trx_split', name:'TRX Split-Stance Rows', type:'sets',
       rx: period<2 ? '3 x 8/side' : '3 x 8/side (more horizontal)',
       note:'Slight torso rotation as you pull. Mirrors pickleball backhand.',
       rest:'60-90 sec between sets.'});
@@ -622,6 +622,106 @@ function buildKBCard(day,ex,sess,logged){
   return card;
 }
 
+function parseSetCount(rx) {
+  var m = rx.match(/^(\d+)/);
+  return m ? parseInt(m[1]) : null;
+}
+
+function setsCountdown(day, exId, total) {
+  if (isLogged(day)) return;
+  ensureSession(day);
+  var sess=S.completed[compKey(day)].session;
+  var key=exId+'_remain';
+  if (sess[key]===undefined) sess[key]=total;
+  if (sess[key]<=0) return;
+  sess[key]--;
+  save();
+  var numEl=document.getElementById('sets-num-'+exId);
+  if (numEl) {
+    numEl.textContent=sess[key]>0?sess[key]:'✓';
+    if (sess[key]===0) numEl.className='ldr-countdown done';
+  }
+  var btn=document.getElementById('sets-btn-'+exId);
+  if (btn) {
+    if (sess[key]===0){ btn.textContent='ALL DONE'; btn.className='ldr-tap-btn done'; }
+  }
+  var bdg=document.getElementById('sets-badge-'+exId);
+  if (bdg) {
+    bdg.textContent=sess[key]>0?(sess[key]+' LEFT'):'✓ DONE';
+    bdg.className='exbadge'+(sess[key]===0?' done':'');
+  }
+  if (sess[key]>0) restStart(exId, 90);
+}
+
+function buildSetsCard(day, ex, sess, logged) {
+  var total=parseSetCount(ex.rx);
+  var key=ex.id+'_remain';
+  var remain=(sess[key]!==undefined)?sess[key]:(total||0);
+  var allDone=total!==null&&remain===0;
+
+  var card=document.createElement('div'); card.className='excard';
+  var hdr=document.createElement('div'); hdr.className='exhdr';
+  var ttl=document.createElement('span'); ttl.className='extitle';
+  ttl.textContent=ex.name.toUpperCase(); hdr.appendChild(ttl);
+  var bdg=document.createElement('span');
+  bdg.id='sets-badge-'+ex.id;
+  bdg.className='exbadge'+(allDone?' done':'');
+  bdg.textContent=allDone?'✓ DONE':(remain+' LEFT');
+  hdr.appendChild(bdg); card.appendChild(hdr);
+
+  var body=document.createElement('div'); body.className='exbody';
+  var rxEl=document.createElement('div'); rxEl.className='row-rx'; rxEl.textContent=ex.rx;
+  body.appendChild(rxEl);
+  if(ex.note){var nt=document.createElement('div'); nt.className='row-note'; nt.textContent=ex.note; body.appendChild(nt);}
+
+  if(total!==null){
+    var cWrap=document.createElement('div'); cWrap.className='ldr-counter-wrap';
+    var numEl=document.createElement('div');
+    numEl.id='sets-num-'+ex.id;
+    numEl.className='ldr-countdown'+(allDone?' done':'');
+    numEl.textContent=allDone?'✓':remain;
+    cWrap.appendChild(numEl);
+    if(!logged){
+      var tapBtn=document.createElement('div');
+      tapBtn.id='sets-btn-'+ex.id;
+      tapBtn.className='ldr-tap-btn'+(allDone?' done':'');
+      tapBtn.textContent=allDone?'ALL DONE':'SET DONE';
+      if(!allDone){
+        tapBtn.addEventListener('click',(function(id,tot){return function(){setsCountdown(day,id,tot);};})(ex.id,total));
+      }
+      cWrap.appendChild(tapBtn);
+    }
+    body.appendChild(cWrap);
+
+    if(!logged){
+      var rtWrap=document.createElement('div'); rtWrap.className='rest-tmr-wrap';
+      var rtDisp=document.createElement('div'); rtDisp.className='rest-tmr-disp';
+      rtDisp.id='rest-disp-'+ex.id;
+      var isActive=R.exId===ex.id&&R.rem>0;
+      rtDisp.textContent=isActive?timerFmt(R.rem):'--:--';
+      if(isActive&&R.rem<=10) rtDisp.className='rest-tmr-disp warn';
+      rtWrap.appendChild(rtDisp);
+      var btn60=document.createElement('button'); btn60.className='rest-tmr-btn'; btn60.textContent='60s';
+      btn60.addEventListener('click',(function(id){return function(){restStart(id,60);};})(ex.id)); rtWrap.appendChild(btn60);
+      var btn90=document.createElement('button'); btn90.className='rest-tmr-btn'; btn90.textContent='90s';
+      btn90.addEventListener('click',(function(id){return function(){restStart(id,90);};})(ex.id)); rtWrap.appendChild(btn90);
+      body.appendChild(rtWrap);
+    }
+  }
+
+  if(ex.rest){
+    var ri2=document.createElement('div'); ri2.className='rest-info';
+    var riIcon2=document.createElement('span'); riIcon2.className='rest-info-icon'; riIcon2.textContent='⏱';
+    ri2.appendChild(riIcon2);
+    var riTxt2=document.createElement('span');
+    var strong2=document.createElement('strong'); strong2.textContent='Rest: '; riTxt2.appendChild(strong2);
+    riTxt2.appendChild(document.createTextNode(ex.rest)); ri2.appendChild(riTxt2);
+    body.appendChild(ri2);
+  }
+  card.appendChild(body);
+  return card;
+}
+
 function getPrevSetCount(exId) {
   var ck=exId+'_count', bestCount=0, bestDate=null;
   Object.keys(S.completed).forEach(function(k) {
@@ -780,6 +880,8 @@ function renderWorkoutDetail(day) {
       el.appendChild(buildFPPCard(day, sess, logged));
     } else if (ex.type === 'kb_ladder') {
       el.appendChild(buildKBCard(day, ex, sess, logged));
+    } else if (ex.type === 'sets') {
+      el.appendChild(buildSetsCard(day, ex, sess, logged));
     } else {
       el.appendChild(buildExCard(day, ex, sess, logged));
     }
